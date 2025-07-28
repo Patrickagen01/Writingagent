@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { AIWritingService } from './ai-service';
 import { PlagiarismDetectionService } from './plagiarism-service';
+import { SeriesManagementService } from './series-service';
 import { 
   NovelProject, 
   Chapter, 
@@ -9,18 +10,27 @@ import {
   WritingSettings, 
   AgentTask, 
   WritingProgress,
-  TranslationRequest
+  TranslationRequest,
+  BookSeries,
+  SeriesCharacter,
+  SeriesAnalytics,
+  ContinuityNote,
+  WorldBible,
+  CharacterArcNode
 } from './types';
 
 export class NovelWritingAgent {
   private aiService: AIWritingService;
   private plagiarismService: PlagiarismDetectionService;
+  private seriesService: SeriesManagementService;
   private tasks: Map<string, AgentTask> = new Map();
   private projects: Map<string, NovelProject> = new Map();
+  private series: Map<string, BookSeries> = new Map();
 
   constructor(openaiApiKey: string, plagiarismApiKey?: string) {
     this.aiService = new AIWritingService(openaiApiKey);
     this.plagiarismService = new PlagiarismDetectionService(plagiarismApiKey);
+    this.seriesService = new SeriesManagementService(openaiApiKey);
   }
 
   async createProject(projectData: Partial<NovelProject>): Promise<NovelProject> {
@@ -364,5 +374,284 @@ export class NovelWritingAgent {
     project.status = status;
     project.updatedAt = new Date();
     this.projects.set(projectId, project);
+  }
+
+  // Series Management Methods
+
+  async createBookSeries(seriesData: Partial<BookSeries>): Promise<BookSeries> {
+    const series = await this.seriesService.createBookSeries(seriesData);
+    this.series.set(series.id, series);
+    return series;
+  }
+
+  async generateSeriesOutline(seriesId: string, settings: WritingSettings): Promise<{ taskId: string; outline?: Record<string, unknown> }> {
+    const series = this.series.get(seriesId);
+    if (!series) throw new Error('Series not found');
+
+    const taskId = uuidv4();
+    const task: AgentTask = {
+      id: taskId,
+      type: 'generate_outline',
+      status: 'pending',
+      input: { seriesId, settings },
+      createdAt: new Date()
+    };
+
+    this.tasks.set(taskId, task);
+
+    try {
+      task.status = 'running';
+      const outline = await this.seriesService.generateSeriesOutline(series, settings);
+      
+      task.status = 'complete';
+      task.output = { outline };
+      task.completedAt = new Date();
+
+      return { taskId, outline };
+    } catch (error) {
+      task.status = 'error';
+      task.error = error instanceof Error ? error.message : 'Unknown error';
+      throw error;
+    }
+  }
+
+  async developSeriesCharacter(
+    seriesId: string,
+    characterData: Partial<SeriesCharacter>,
+    settings: WritingSettings
+  ): Promise<{ taskId: string; characterArc?: CharacterArcNode[] }> {
+    const series = this.series.get(seriesId);
+    if (!series) throw new Error('Series not found');
+
+    const taskId = uuidv4();
+    const task: AgentTask = {
+      id: taskId,
+      type: 'develop_character',
+      status: 'pending',
+      input: { seriesId, characterData, settings },
+      createdAt: new Date()
+    };
+
+    this.tasks.set(taskId, task);
+
+    try {
+      task.status = 'running';
+
+      const character: SeriesCharacter = {
+        id: characterData.id || uuidv4(),
+        name: characterData.name || 'Unnamed Character',
+        aliases: characterData.aliases || [],
+        description: characterData.description || '',
+        role: characterData.role || 'supporting',
+        personality: characterData.personality || '',
+        background: characterData.background || '',
+        physicalDescription: characterData.physicalDescription || '',
+        goals: characterData.goals || '',
+        conflicts: characterData.conflicts || '',
+        relationships: characterData.relationships || [],
+        characterArc: [],
+        appearances: characterData.appearances || [],
+        development: characterData.development || [],
+        secrets: characterData.secrets || [],
+        abilities: characterData.abilities || [],
+        weaknesses: characterData.weaknesses || []
+      };
+
+      const characterArc = await this.seriesService.developSeriesCharacterArc(character, series, settings);
+
+      // Update series with character
+      character.characterArc = characterArc;
+      const existingCharacterIndex = series.seriesCharacters.findIndex(ch => ch.id === character.id);
+      if (existingCharacterIndex >= 0) {
+        series.seriesCharacters[existingCharacterIndex] = character;
+      } else {
+        series.seriesCharacters.push(character);
+      }
+
+      series.updatedAt = new Date();
+      this.series.set(seriesId, series);
+
+      task.status = 'complete';
+      task.output = { character, characterArc };
+      task.completedAt = new Date();
+
+      return { taskId, characterArc };
+    } catch (error) {
+      task.status = 'error';
+      task.error = error instanceof Error ? error.message : 'Unknown error';
+      throw error;
+    }
+  }
+
+  async checkSeriesContinuity(seriesId: string, focusAreas?: string[]): Promise<{ taskId: string; continuityReport?: ContinuityNote[] }> {
+    const series = this.series.get(seriesId);
+    if (!series) throw new Error('Series not found');
+
+    const taskId = uuidv4();
+    const task: AgentTask = {
+      id: taskId,
+      type: 'plagiarism_check', // Reusing for continuity check
+      status: 'pending',
+      input: { seriesId, focusAreas },
+      createdAt: new Date()
+    };
+
+    this.tasks.set(taskId, task);
+
+    try {
+      task.status = 'running';
+      const continuityReport = await this.seriesService.checkSeriesContinuity(series, focusAreas);
+      
+      // Update series with continuity notes
+      series.continuityNotes = continuityReport;
+      series.updatedAt = new Date();
+      this.series.set(seriesId, series);
+
+      task.status = 'complete';
+      task.output = { continuityReport };
+      task.completedAt = new Date();
+
+      return { taskId, continuityReport };
+    } catch (error) {
+      task.status = 'error';
+      task.error = error instanceof Error ? error.message : 'Unknown error';
+      throw error;
+    }
+  }
+
+  async expandSeriesWorldBible(
+    seriesId: string,
+    categories: string[],
+    settings: WritingSettings
+  ): Promise<{ taskId: string; worldBible?: WorldBible }> {
+    const series = this.series.get(seriesId);
+    if (!series) throw new Error('Series not found');
+
+    const taskId = uuidv4();
+    const task: AgentTask = {
+      id: taskId,
+      type: 'generate_outline', // Reusing for world bible expansion
+      status: 'pending',
+      input: { seriesId, categories, settings },
+      createdAt: new Date()
+    };
+
+    this.tasks.set(taskId, task);
+
+    try {
+      task.status = 'running';
+      const expandedWorldBible = await this.seriesService.expandWorldBible(
+        series.worldBible,
+        series,
+        categories,
+        settings
+      );
+      
+      // Update series with expanded world bible
+      series.worldBible = expandedWorldBible;
+      series.updatedAt = new Date();
+      this.series.set(seriesId, series);
+
+      task.status = 'complete';
+      task.output = { worldBible: expandedWorldBible };
+      task.completedAt = new Date();
+
+      return { taskId, worldBible: expandedWorldBible };
+    } catch (error) {
+      task.status = 'error';
+      task.error = error instanceof Error ? error.message : 'Unknown error';
+      throw error;
+    }
+  }
+
+  async planBookTransition(
+    seriesId: string,
+    fromBook: number,
+    toBook: number,
+    settings: WritingSettings
+  ): Promise<{ taskId: string; transitionPlan?: Record<string, unknown> }> {
+    const series = this.series.get(seriesId);
+    if (!series) throw new Error('Series not found');
+
+    const taskId = uuidv4();
+    const task: AgentTask = {
+      id: taskId,
+      type: 'generate_outline',
+      status: 'pending',
+      input: { seriesId, fromBook, toBook, settings },
+      createdAt: new Date()
+    };
+
+    this.tasks.set(taskId, task);
+
+    try {
+      task.status = 'running';
+      const transitionPlan = await this.seriesService.planBookTransition(series, fromBook, toBook, settings);
+
+      task.status = 'complete';
+      task.output = { transitionPlan };
+      task.completedAt = new Date();
+
+      return { taskId, transitionPlan };
+    } catch (error) {
+      task.status = 'error';
+      task.error = error instanceof Error ? error.message : 'Unknown error';
+      throw error;
+    }
+  }
+
+  async addBookToSeries(seriesId: string, projectData: Partial<NovelProject>): Promise<NovelProject> {
+    const series = this.series.get(seriesId);
+    if (!series) throw new Error('Series not found');
+
+    // Create project with series context
+    const project = await this.createProject({
+      ...projectData,
+      title: projectData.title || `${series.title} - Book ${series.currentBookCount + 1}`,
+      genre: projectData.genre || series.genre,
+      type: projectData.type || series.type
+    });
+
+    // Link project to series
+    series.books.push(project);
+    series.currentBookCount = series.books.length;
+    series.updatedAt = new Date();
+    this.series.set(seriesId, series);
+
+    return project;
+  }
+
+  async getSeriesAnalytics(seriesId: string): Promise<SeriesAnalytics> {
+    const series = this.series.get(seriesId);
+    if (!series) throw new Error('Series not found');
+
+    return await this.seriesService.generateSeriesAnalytics(series);
+  }
+
+  getSeries(seriesId: string): BookSeries | undefined {
+    return this.series.get(seriesId);
+  }
+
+  listSeries(): BookSeries[] {
+    return Array.from(this.series.values());
+  }
+
+  async deleteSeries(seriesId: string): Promise<boolean> {
+    const series = this.series.get(seriesId);
+    if (!series) return false;
+
+    // Delete all books in the series
+    for (const book of series.books) {
+      await this.deleteProject(book.id);
+    }
+
+    // Delete series tasks
+    const seriesToDelete = this.listTasks().filter(task => 
+      task.input && typeof task.input === 'object' && 
+      'seriesId' in task.input && task.input.seriesId === seriesId
+    );
+    seriesToDelete.forEach(task => this.tasks.delete(task.id));
+
+    return this.series.delete(seriesId);
   }
 }

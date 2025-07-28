@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { WritingSettings, Chapter, Character, NovelProject } from './types';
+import { WritingSettings, Chapter, Character, NovelProject, BookSeries } from './types';
 
 export class AIWritingService {
   private openai: OpenAI;
@@ -8,7 +8,7 @@ export class AIWritingService {
     this.openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
   }
 
-  async generateOutline(project: Partial<NovelProject>, settings: WritingSettings): Promise<string> {
+  async generateOutline(project: Partial<NovelProject> | BookSeries, settings: WritingSettings): Promise<string> {
     const prompt = this.buildOutlinePrompt(project, settings);
     
     try {
@@ -161,27 +161,34 @@ ${text}`;
     }
   }
 
-  private buildOutlinePrompt(project: Partial<NovelProject>, settings: WritingSettings): string {
-    return `Create a detailed outline for a ${project.type} novel with the following specifications:
+  private buildOutlinePrompt(project: Partial<NovelProject> | BookSeries, settings: WritingSettings): string {
+    const isSeries = 'totalPlannedBooks' in project;
+    const targetWords = isSeries ? '80000 per book' : (project as NovelProject).targetWordCount;
+    const themes = isSeries ? (project as BookSeries).overallThemes : (project as NovelProject).themes;
+    
+    return `Create a detailed outline for a ${project.type} ${isSeries ? 'series' : 'novel'} with the following specifications:
 
 Title: ${project.title}
 Genre: ${project.genre}
 Description: ${project.description}
-Target Word Count: ${project.targetWordCount} words
+Target Word Count: ${targetWords} words
+${isSeries ? `Total Books Planned: ${(project as BookSeries).totalPlannedBooks}` : ''}
 Writing Style: ${settings.writingStyle}
 Tone: ${settings.tone}
 Point of View: ${settings.pointOfView}
-Themes: ${project.themes?.join(', ') || 'To be determined'}
+Themes: ${themes?.join(', ') || 'To be determined'}
 
 Please create:
-1. A compelling premise and central conflict
-2. Detailed chapter-by-chapter breakdown
-3. Character arcs and development
+${isSeries ? '1. Overall series arc across all books' : '1. A compelling premise and central conflict'}
+${isSeries ? '2. Individual book outlines with unique conflicts' : '2. Detailed chapter-by-chapter breakdown'}
+3. Character arcs and development${isSeries ? ' across the series' : ''}
 4. Major plot points and turning moments
 5. Thematic elements and their integration
 6. Pacing and structure recommendations
+${isSeries ? '7. Plot threads that span multiple books' : ''}
+${isSeries ? '8. Character development across the entire series' : ''}
 
-Ensure the outline is completely original and avoids any similarities to existing published works.`;
+Ensure the outline is completely original and avoids any similarities to existing published works${isSeries ? ' across the entire series' : ''}.`;
   }
 
   private buildChapterPrompt(
