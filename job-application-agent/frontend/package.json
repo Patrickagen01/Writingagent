@@ -51,8 +51,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:sprite": "node run-testsprite-tests.js",
-    "test:e2e": "node run-testsprite-tests.js --e2e",
+    "test:sprite": "node run-simple-tests.js",
+    "test:e2e": "node run-simple-tests.js --e2e",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit"
   },
