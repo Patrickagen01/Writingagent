@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "name": "decentralized-job-agent-frontend",
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), microphone=(), camera=()"
+        },
+        {
+          "key": "X-GDPR-Compliant",
+          "value": "true"
+        },
+        {
+          "key": "X-Data-Processing",
+          "value": "local-only"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "REACT_APP_API_URL": "@api-url",
+    "REACT_APP_BLOCKCHAIN_NETWORK": "@blockchain-network",
+    "REACT_APP_IPFS_GATEWAY": "@ipfs-gateway"
+  },
+  "functions": {
+    "frontend/api/**/*.js": {
+      "maxDuration": 10
+    }
+  }
+}
