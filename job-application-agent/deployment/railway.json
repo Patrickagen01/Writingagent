@@ -1,0 +1,58 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "cd backend && npm start",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  },
+  "environments": {
+    "development": {
+      "variables": {
+        "NODE_ENV": "development",
+        "PORT": "3001",
+        "DATABASE_URL": "sqlite:./data/development.db",
+        "JWT_SECRET": "dev-secret-key-change-in-production",
+        "ENCRYPTION_KEY": "dev-encryption-key-32-chars-long",
+        "IPFS_GATEWAY": "https://ipfs.io/ipfs/",
+        "ETHEREUM_NETWORK": "testnet",
+        "ETHEREUM_RPC_URL": "https://goerli.infura.io/v3/YOUR_PROJECT_ID",
+        "GDPR_ENABLED": "true",
+        "PRIVACY_MODE": "strict"
+      }
+    },
+    "production": {
+      "variables": {
+        "NODE_ENV": "production",
+        "PORT": "3001",
+        "DATABASE_URL": "postgresql://user:pass@host:5432/dbname",
+        "JWT_SECRET": "@jwt-secret",
+        "ENCRYPTION_KEY": "@encryption-key",
+        "IPFS_GATEWAY": "https://ipfs.io/ipfs/",
+        "ETHEREUM_NETWORK": "mainnet",
+        "ETHEREUM_RPC_URL": "@ethereum-rpc-url",
+        "GDPR_ENABLED": "true",
+        "PRIVACY_MODE": "strict",
+        "LOG_LEVEL": "info"
+      }
+    }
+  },
+  "resources": {
+    "cpu": "0.5",
+    "memory": "512MB",
+    "storage": "1GB"
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics": ["cpu", "memory", "disk", "network"]
+  },
+  "scaling": {
+    "min": 1,
+    "max": 3,
+    "auto": true
+  }
+}
